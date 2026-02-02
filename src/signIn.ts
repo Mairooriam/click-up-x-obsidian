@@ -97,6 +97,11 @@ export class MainAppModal extends Modal {
 					new Notice("Success", 3000);
 					this.plugin.settingsTab.renderSettings();
 					this.close();
+				}else {
+					button.disabled = false;
+					button.textContent = "Invalid Code - Try Again";
+					button.classList.remove("renderAuthrizationBtn");
+					new Notice("Authentication failed. Please check your code.", 5000);
 				}
 			}
 		});
