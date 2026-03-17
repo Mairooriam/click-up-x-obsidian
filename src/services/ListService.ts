@@ -32,8 +32,4 @@ export class ListService {
 		}
 	}
 
-
-
-
-
 }

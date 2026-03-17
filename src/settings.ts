@@ -7,6 +7,7 @@ import {
 	AuthService,
 	StorageService,
 	TaskService,
+	SettingsService,
 } from "./services";
 
 export class ClickUpSettingTab extends PluginSettingTab {
@@ -15,6 +16,7 @@ export class ClickUpSettingTab extends PluginSettingTab {
 	private authService: AuthService;
 	private storageService: StorageService;
 	private taskService: TaskService;
+	private settingsService: SettingsService;
 
 	constructor(app: App, plugin: ClickUpPlugin) {
 		super(app, plugin);
@@ -23,11 +25,12 @@ export class ClickUpSettingTab extends PluginSettingTab {
 		this.authService = AuthService.getInstance();
 		this.storageService = StorageService.getInstance();
 		this.taskService = TaskService.getInstance();
+		this.settingsService = SettingsService.getInstance();
 	}
 
 	async loadSpaces(): Promise<ISpace[]> {
 		const { teams } = this.plugin.settings;
-		return await this.authService.loadAllSpaces(teams);
+		return await this.settingsService.loadAllSpaces(teams);
 	}
 
 	async loadLists(): Promise<IList[]> {
@@ -217,8 +220,8 @@ export class ClickUpSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(
 				"User: " +
-					(this.plugin.settings.user?.username ||
-						"doesnt registration")
+				(this.plugin.settings.user?.username ||
+					"doesnt registration")
 			)
 			.addButton((btn) => {
 				btn.setButtonText("Log out");

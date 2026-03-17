@@ -1,5 +1,5 @@
 import { ApiService } from "./ApiService";
-import { ISpace, IList } from "../interfaces/api.types";
+import { IList } from "../interfaces/api.types";
 
 export class AuthService {
 	private static instance: AuthService;
@@ -52,22 +52,6 @@ export class AuthService {
 		localStorage.removeItem("selectedList");
 		localStorage.removeItem("click_up_token");
 		localStorage.removeItem("selectedSpace");
-	}
-
-	/**
-	 * Loads all spaces for all teams
-	 */
-	public async loadAllSpaces(teams: any[]): Promise<ISpace[]> {
-		const spaces: ISpace[] = [];
-
-		for (const team of teams) {
-			const teamSpaces = await this.apiService.getSpaces(team.id);
-			teamSpaces.forEach((sp: any) =>
-				spaces.push({ name: sp.name, id: sp.id })
-			);
-		}
-
-		return spaces;
 	}
 
 	/**
