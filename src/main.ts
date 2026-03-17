@@ -62,9 +62,10 @@ export default class ClickUpPlugin extends Plugin {
 		if (!this.authService.isAuthenticated()) {
 			this.logOut();
 		} else {
-			this.saveSettings();
-			this.settingsTab.renderSettings();
-			this.fetchUser(JSON.stringify(this.storageService.getToken()));
+			//TODO: uncomment this once done figuring stuff out
+			// this.saveSettings();
+			// this.settingsTab.renderSettings();
+			// this.fetchUser(JSON.stringify(this.storageService.getToken()));
 		}
 
 		// ==================== OBSIDIAN COMMANDS ====================

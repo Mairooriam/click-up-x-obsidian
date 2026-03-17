@@ -28,6 +28,7 @@ export class ClickUpSettingTab extends PluginSettingTab {
 		this.settingsService = SettingsService.getInstance();
 	}
 
+	// loadSpaces and loadLists is being called both onLoad causing double API CALL
 	async loadSpaces(): Promise<ISpace[]> {
 		const { teams } = this.plugin.settings;
 		return await this.settingsService.loadAllSpaces(teams);
@@ -43,11 +44,24 @@ export class ClickUpSettingTab extends PluginSettingTab {
 		await this.authService.configureListsLocally(teams);
 	}
 
-	renderSettings() {
-		let { containerEl } = this;
-		const { teams } = this.plugin.settings;
-		containerEl.empty();
+	async display(): Promise<void> {
+		if (this.authService.isAuthenticated()) {
+			this.renderSettings();
+		} else {
+			this.renderSignIn();
+		}
+	}
 
+	renderSettings() {
+		const { containerEl } = this;
+		containerEl.empty();
+		this.renderSpaceDropdown(containerEl);
+		this.renderListDropdown(containerEl);
+		this.renderWorkspaceSection(containerEl);
+		this.renderUserSection(containerEl);
+	}
+
+	private renderSpaceDropdown(containerEl: HTMLElement) {
 		new Setting(containerEl)
 			.setName("Select space")
 			.addDropdown(async (dropdown) => {
@@ -82,7 +96,8 @@ export class ClickUpSettingTab extends PluginSettingTab {
 					dropdown.addOption("", "error");
 				}
 			});
-
+	}
+	private renderListDropdown(containerEl: HTMLElement) {
 		new Setting(containerEl)
 			.setName("Select default sheet")
 			.addDropdown(async (dropdown) => {
@@ -122,7 +137,11 @@ export class ClickUpSettingTab extends PluginSettingTab {
 				}
 			})
 			.setDesc("");
+	}
 
+
+	private renderWorkspaceSection(containerEl: HTMLElement) {
+		const { teams } = this.plugin.settings;
 		new Setting(containerEl)
 			.setName(`WorkSpaces: ${teams[0]?.name}`)
 			.setDesc(
@@ -217,6 +236,9 @@ export class ClickUpSettingTab extends PluginSettingTab {
 				});
 			});
 
+	}
+
+	private renderUserSection(containerEl: HTMLElement) {
 		new Setting(containerEl)
 			.setName(
 				"User: " +
@@ -249,11 +271,5 @@ export class ClickUpSettingTab extends PluginSettingTab {
 		});
 	}
 
-	async display(): Promise<void> {
-		if (this.authService.isAuthenticated()) {
-			this.renderSettings();
-		} else {
-			this.renderSignIn();
-		}
-	}
+
 }
