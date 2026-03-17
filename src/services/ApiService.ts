@@ -12,27 +12,74 @@ export class ApiService {
 		}
 		return ApiService.instance;
 	}
+	private extractCallerFromStack(stack?: string): any {
+		if (!stack) return { caller: 'unknown', fullStack: [] };
+		
+		const lines = stack.split('\n');
+		const stackInfo = [];
+		
+		// Parse each stack frame
+		for (let i = 0; i < Math.min(lines.length, 10); i++) {
+			const line = lines[i].trim();
+			if (!line) continue;
+			
+			// Match different stack frame formats
+			const match = line.match(/at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?/) || 
+						line.match(/at\s+(\w+\.?\w*)/);
+			
+			if (match) {
+				stackInfo.push({
+					index: i,
+					raw: line,
+					function: match[1] || 'anonymous',
+					file: match[2] || 'unknown',
+					line: match[3] || 'unknown',
+					column: match[4] || 'unknown'
+				});
+			}
+		}
+		
+		// Skip Error, extractCallerFromStack, fetcher - get actual caller
+		const actualCaller = stackInfo[3] || stackInfo[2] || { function: 'unknown' };
+		
+		return {
+			caller: actualCaller.function,
+			callerDetails: actualCaller,
+			fullStack: stackInfo
+		};
+	}
 
-    private async fetcher(url: string, options: RequestInit = {}) {
-        console.log({ url: `https://api.clickup.com/api/v2/${url}` });
+	private async fetcher(url: string, options: RequestInit = {}, caller?: string) {
+		const stack = new Error().stack;
+		const stackInfo = caller || this.extractCallerFromStack(stack);
+		
+		console.log({
+			url: `https://api.clickup.com/api/v2/${url}`,
+			caller: caller || stackInfo.caller,
+			callerDetails: stackInfo.callerDetails,
+			method: (options.method as string) ?? "GET",
+			timestamp: new Date().toISOString(),
+			headers: Object.keys(options.headers || {}),
+			stackTrace: stackInfo.fullStack.slice(0, 5), // Show first 5 frames
+		});
 
-        const token = localStorage.getItem("click_up_token");
-        const mergedHeaders: Record<string, string> = {
-            ...(options.headers as Record<string, string> | undefined),
-        };
+		const token = localStorage.getItem("click_up_token");
+		const mergedHeaders: Record<string, string> = {
+			...(options.headers as Record<string, string> | undefined),
+		};
 
-        if (token) {
-            mergedHeaders.Authorization = token;
-        }
+		if (token) {
+			mergedHeaders.Authorization = token;
+		}
 
-        return requestUrl({
-            url: `https://api.clickup.com/api/v2/${url}`,
-            method: (options.method as string) ?? "GET",
-            headers: mergedHeaders,
-            body: options.body as string | undefined,
-            throw: true,
-        });
-    }
+		return requestUrl({
+			url: `https://api.clickup.com/api/v2/${url}`,
+			method: (options.method as string) ?? "GET",
+			headers: mergedHeaders,
+			body: options.body as string | undefined,
+			throw: true,
+		});
+	}
 
     public async getToken(input: string): Promise<string | undefined> {
         if (!input) return "MISSING_TOKEN";
