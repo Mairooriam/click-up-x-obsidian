@@ -13,59 +13,56 @@ export class ApiService {
 		return ApiService.instance;
 	}
 
-	private async fetcher(url: string, options: RequestInit = {}) {
-		console.log({ url: `https://api.clickup.com/api/v2/${url}` });
-		const token = localStorage.getItem("click_up_token") as string;
-		const request = requestUrl({
-			contentType: "application/json",
-			url: `https://api.clickup.com/api/v2/${url}`,
-			headers: {
-				Authorization: token,
-				"Grant Type": "Authorization Code",
-			},
-			method: options.method,
-			body: options.body as string,
-			throw: true,
-		});
-		return request;
-	}
+    private async fetcher(url: string, options: RequestInit = {}) {
+        console.log({ url: `https://api.clickup.com/api/v2/${url}` });
 
-	public async getToken(code: string): Promise<string | undefined> {
-		if (!code) return "MISSING_CODE";
-		console.log({ code });
-		const CLICK_UP_CLIENT = process.env.CLICK_UP_CLIENT ?? "";
-		const CLICK_UP_SECRET = process.env.CLICK_UP_SECRET ?? "";
-		const query = new URLSearchParams({
-			client_id: CLICK_UP_CLIENT,
-			client_secret: CLICK_UP_SECRET,
-			code: code,
-		}).toString();
+        const token = localStorage.getItem("click_up_token");
+        const mergedHeaders: Record<string, string> = {
+            ...(options.headers as Record<string, string> | undefined),
+        };
 
-		try {
-			const resp = await this.fetcher(`oauth/token?${query}`, {
-				method: "POST",
-			});
+        if (token) {
+            mergedHeaders.Authorization = token;
+        }
 
-			let responseBody: any = null;
+        return requestUrl({
+            url: `https://api.clickup.com/api/v2/${url}`,
+            method: (options.method as string) ?? "GET",
+            headers: mergedHeaders,
+            body: options.body as string | undefined,
+            throw: true,
+        });
+    }
 
-			try {
-				responseBody = await resp.json;
-			} catch (jsonErr) {
-				console.error("Failed to parse JSON response", jsonErr);
-			}
+    public async getToken(input: string): Promise<string | undefined> {
+        if (!input) return "MISSING_TOKEN";
 
-			const data = responseBody as {
-				access_token: string;
-				type: string;
-			};
+        let token = input.trim();
 
-			localStorage.setItem("click_up_token", data.access_token);
-			return data.access_token;
-		} catch (error: any) {
-			console.error("Error during getToken()", error);
-			return undefined;
-		}
-	}
+        // Supports full JSON pasted from your Python callback:
+        // {"access_token":"...","token_type":"Bearer"}
+        try {
+            const parsed = JSON.parse(token) as { access_token?: string };
+            if (parsed?.access_token) token = parsed.access_token;
+        } catch {
+            // raw token, ignore
+        }
+
+        try {
+            localStorage.setItem("click_up_token", token);
+
+            // Validate token immediately
+            const user = await this.getAuthorizedUser();
+            if (!user?.id) throw new Error("Invalid token");
+
+            return token;
+        } catch (error) {
+            localStorage.removeItem("click_up_token");
+            console.error("Error during getToken()", error);
+            return undefined;
+        }
+    }
+
 
 	public async getAuthorizedUser() {
 		const resp = await this.fetcher(`user`);
@@ -150,6 +147,7 @@ export class ApiService {
 		const responseData = await response.json;
 		return responseData;
 	}
+	
 
 	public async showError(
 		e: Error

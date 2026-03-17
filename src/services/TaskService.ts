@@ -43,31 +43,51 @@ export class TaskService {
 	/**
 	 * Creates a task from the selected text in the editor
 	 */
-	public async createTaskFromSelection(selection: string, listId: string) {
-		const requestData: TCreateTask = {
-			name: selection,
-			description: "",
-			assignees: [],
-			priority: 3,
-		};
+    public async createTaskFromSelection(selection: string, listId: string) {
+        console.log("🔍 createTaskFromSelection called with:", { selection, listId });
+        
+        if (!selection || selection.trim().length === 0) {
+            console.error("❌ Empty selection provided");
+            new Notice("No text selected!", 3000);
+            return { error: "No selection", success: false };
+        }
 
-		try {
-			const task = await this.apiService.createTask({
-				data: requestData,
-				listId,
-			});
+        if (!listId) {
+            console.error("❌ No listId provided");
+            new Notice("No list selected!", 3000);
+            return { error: "No list", success: false };
+        }
 
-			if (task.err) {
-				throw new Error(task.err);
-			}
+        const requestData: TCreateTask = {
+            name: selection.trim(),
+            description: "",
+            assignees: [],
+            priority: 3,
+        };
 
-			// new Notice("Created new task!", 3000);
-			return task;
-		} catch (err: any) {
-			const errorResponse = await this.apiService.showError(err);
-			return { error: errorResponse, success: false };
-		}
-	}
+        console.log("📝 Creating task with data:", requestData);
+
+        try {
+            const task = await this.apiService.createTask({
+                data: requestData,
+                listId,
+            });
+
+            console.log("✅ Task creation response:", task);
+
+            if (task.err) {
+                console.error("❌ Task creation failed:", task.err);
+                throw new Error(task.err);
+            }
+
+            new Notice("Created task from selection!", 3000);
+            return task;
+        } catch (err: any) {
+            console.error("❌ Exception in createTaskFromSelection:", err);
+            const errorResponse = await this.apiService.showError(err);
+            return { error: errorResponse, success: false };
+        }
+    }
 
 	/**
 	 * Gets tasks from a list
@@ -99,4 +119,7 @@ export class TaskService {
 			};
 		});
 	}
+
+
+	
 }
