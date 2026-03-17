@@ -3,8 +3,9 @@ import { TAllLists, TCreateTask, TMember } from "../interfaces/api.types";
 
 export class ApiService {
 	private static instance: ApiService;
+	private enableStackTrace: boolean = true;
 
-	private constructor() {}
+	private constructor() { }
 
 	public static getInstance(): ApiService {
 		if (!ApiService.instance) {
@@ -13,20 +14,21 @@ export class ApiService {
 		return ApiService.instance;
 	}
 	private extractCallerFromStack(stack?: string): any {
+		//TODO: make proper logger. this is from AI
 		if (!stack) return { caller: 'unknown', fullStack: [] };
-		
+
 		const lines = stack.split('\n');
 		const stackInfo = [];
-		
+
 		// Parse each stack frame
 		for (let i = 0; i < Math.min(lines.length, 10); i++) {
 			const line = lines[i].trim();
 			if (!line) continue;
-			
+
 			// Match different stack frame formats
-			const match = line.match(/at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?/) || 
-						line.match(/at\s+(\w+\.?\w*)/);
-			
+			const match = line.match(/at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?/) ||
+				line.match(/at\s+(\w+\.?\w*)/);
+
 			if (match) {
 				stackInfo.push({
 					index: i,
@@ -38,10 +40,10 @@ export class ApiService {
 				});
 			}
 		}
-		
+
 		// Skip Error, extractCallerFromStack, fetcher - get actual caller
 		const actualCaller = stackInfo[3] || stackInfo[2] || { function: 'unknown' };
-		
+
 		return {
 			caller: actualCaller.function,
 			callerDetails: actualCaller,
@@ -50,18 +52,24 @@ export class ApiService {
 	}
 
 	private async fetcher(url: string, options: RequestInit = {}, caller?: string) {
-		const stack = new Error().stack;
-		const stackInfo = caller || this.extractCallerFromStack(stack);
-		
-		console.log({
+		//TODO: maker proper logger
+		const stack = this.enableStackTrace ? new Error().stack : undefined;
+		const stackInfo = caller || (this.enableStackTrace ? this.extractCallerFromStack(stack) : { caller: 'disabled' });
+
+		const logData: any = {
 			url: `https://api.clickup.com/api/v2/${url}`,
 			caller: caller || stackInfo.caller,
-			callerDetails: stackInfo.callerDetails,
 			method: (options.method as string) ?? "GET",
 			timestamp: new Date().toISOString(),
 			headers: Object.keys(options.headers || {}),
-			stackTrace: stackInfo.fullStack.slice(0, 5), // Show first 5 frames
-		});
+		};
+
+		if (this.enableStackTrace && !caller) {
+			logData.callerDetails = stackInfo.callerDetails;
+			logData.stackTrace = stackInfo.fullStack?.slice(0, 10);
+		}
+
+		console.log(logData);
 
 		const token = localStorage.getItem("click_up_token");
 		const mergedHeaders: Record<string, string> = {
@@ -81,34 +89,34 @@ export class ApiService {
 		});
 	}
 
-    public async getToken(input: string): Promise<string | undefined> {
-        if (!input) return "MISSING_TOKEN";
+	public async getToken(input: string): Promise<string | undefined> {
+		if (!input) return "MISSING_TOKEN";
 
-        let token = input.trim();
+		let token = input.trim();
 
-        // Supports full JSON pasted from your Python callback:
-        // {"access_token":"...","token_type":"Bearer"}
-        try {
-            const parsed = JSON.parse(token) as { access_token?: string };
-            if (parsed?.access_token) token = parsed.access_token;
-        } catch {
-            // raw token, ignore
-        }
+		// Supports full JSON pasted from your Python callback:
+		// {"access_token":"...","token_type":"Bearer"}
+		try {
+			const parsed = JSON.parse(token) as { access_token?: string };
+			if (parsed?.access_token) token = parsed.access_token;
+		} catch {
+			// raw token, ignore
+		}
 
-        try {
-            localStorage.setItem("click_up_token", token);
+		try {
+			localStorage.setItem("click_up_token", token);
 
-            // Validate token immediately
-            const user = await this.getAuthorizedUser();
-            if (!user?.id) throw new Error("Invalid token");
+			// Validate token immediately
+			const user = await this.getAuthorizedUser();
+			if (!user?.id) throw new Error("Invalid token");
 
-            return token;
-        } catch (error) {
-            localStorage.removeItem("click_up_token");
-            console.error("Error during getToken()", error);
-            return undefined;
-        }
-    }
+			return token;
+		} catch (error) {
+			localStorage.removeItem("click_up_token");
+			console.error("Error during getToken()", error);
+			return undefined;
+		}
+	}
 
 
 	public async getAuthorizedUser() {
@@ -194,7 +202,7 @@ export class ApiService {
 		const responseData = await response.json;
 		return responseData;
 	}
-	
+
 
 	public async showError(
 		e: Error
