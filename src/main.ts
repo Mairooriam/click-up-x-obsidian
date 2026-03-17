@@ -17,6 +17,7 @@ import {
 	TCreateTask,
 } from "./interfaces";
 import * as dotenv from "dotenv";
+import { sep } from "path";
 
 dotenv.config({
 	debug: false,
@@ -28,7 +29,7 @@ type TClickUpRedirectParams = {
 };
 
 export default class ClickUpPlugin extends Plugin {
-	settings: ClickUpPluginSettings;
+	settings: ClickUpPluginSettings; // settings fields data
 	settingsTab: ClickUpSettingTab;
 	modal: MainAppModal;
 	apiService: ApiService;
@@ -66,17 +67,14 @@ export default class ClickUpPlugin extends Plugin {
 			this.fetchUser(JSON.stringify(this.storageService.getToken()));
 		}
 
-		// Register commands
+		// ==================== OBSIDIAN COMMANDS ====================
 		this.addCommand({
 			id: "manual-create-task-clickUp",
 			name: "Create ClickUp task",
-			// hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "c" }],
 			callback: async () => {
-				if (!this.authService.isAuthenticated()) {
-					new SigninRequiredModal(this.app, this).open();
-				} else {
-					new CreateTaskModal(this).open();
-				}
+				//TODO: add functionality to new workflow
+				console.log("Not implemented yet Miro 17.3.2026");
+
 			},
 		});
 
@@ -84,42 +82,8 @@ export default class ClickUpPlugin extends Plugin {
 			id: "create-task-clickUp-selection",
 			name: "Create ClickUp task from selection",
 			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				const sel = editor.getSelection();
-				const defaultList = this.storageService.getSelectedList();
-
-				if (!sel) {
-					return;
-				}
-
-				if (!defaultList) {
-					new Notice("Please select a sheet in settings");
-					return;
-				}
-
-				try {
-					const task = await this.taskService.createTaskFromSelection(
-						sel,
-						defaultList.id
-					);
-
-					if (!task.error) {
-						setTimeout(() => {
-							editor.replaceRange(
-								` [task](${task.url})`,
-								editor.getCursor("to")
-							);
-							new Notice("Created new task!", 3000);
-							// this.syncronizeListNote(defaultList.id);
-						}, 100);
-					} else if (!task.error.isAuth) {
-						this.logOut();
-					}
-				} catch (err: any) {
-					const errorResponse = await this.apiService.showError(err);
-					if (!errorResponse.isAuth) {
-						this.logOut();
-					}
-				}
+				//TODO: add functionality to new workflow
+				console.log("Not implemented yet Miro 17.3.2026");
 			},
 		});
 	}
