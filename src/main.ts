@@ -5,6 +5,7 @@ import "../styles.css";
 import { SigninRequiredModal } from "./components/SigninRequired";
 import { ClickUpSettingTab } from "./settings";
 import { createTable } from "./utils";
+import { parseTaskList, type TaskParserResult } from './services/Lexer';
 import {
 	ApiService,
 	AuthService,
@@ -70,12 +71,15 @@ export default class ClickUpPlugin extends Plugin {
 
 		// ==================== OBSIDIAN COMMANDS ====================
 		this.addCommand({
-			id: "manual-create-task-clickUp",
-			name: "Create ClickUp task",
+			id: "Sync to cursor",
+			name: "Sync to cursor",
 			callback: async () => {
-				//TODO: add functionality to new workflow
-				console.log("Not implemented yet Miro 17.3.2026");
-
+				try {
+					const data = await this.apiService.getTasks("901522227733");
+					console.log("Fetched tasks:", data);
+				} catch (error) {
+					console.error("Failed to fetch tasks:", error);
+				}
 			},
 		});
 
@@ -83,8 +87,32 @@ export default class ClickUpPlugin extends Plugin {
 			id: "create-task-clickUp-selection",
 			name: "Create ClickUp task from selection",
 			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				//TODO: add functionality to new workflow
-				console.log("Not implemented yet Miro 17.3.2026");
+				const selectedText = editor.getSelection();
+
+				if (!selectedText.trim()) {
+					new Notice("No text selected");
+					return;
+				}
+
+				console.log("Raw selection:", selectedText);
+
+				const parseResult: TaskParserResult = parseTaskList(selectedText);
+
+				console.log("Parsed tasks:", parseResult);
+				console.log("Task map:", parseResult.taskMap);
+				console.log("Link map:", parseResult.linkMap);
+				console.log("Parent map:", parseResult.parentMap);
+				console.log("Root tasks:", parseResult.roots);
+
+				// Log each task with its flags
+				parseResult.taskMap.forEach((task, taskId) => {
+					console.log(`Task ${taskId}:`, {
+						name: task.name,
+						level: task.level,
+						flags: task.flags,
+						children: task.children.map(child => child.id)
+					});
+				});
 			},
 		});
 	}
