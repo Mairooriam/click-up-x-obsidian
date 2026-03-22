@@ -1,11 +1,37 @@
-interface Task {
-	id: string;
-	name: string;
-	children: Task[];
-	level: number;
-	flags?: Record<string, string>;
-}
+//TODO: use this from AI somehow. 
+// import { Gettasks } from "../clickupTypes/types";
 
+// // Extend Gettasks with lexer-specific fields
+// interface Task extends Partial<Gettasks> {
+//     id: string;                    // Required from Gettasks
+//     name: string;                  // Required from Gettasks
+//     children: Task[];              // Lexer-specific: hierarchy
+//     level: number;                 // Lexer-specific: indentation level
+//     flags?: Record<string, string>; // Lexer-specific: parsed flags
+    
+//     // Optional Gettasks fields that might be populated from API
+//     text_content?: string;
+//     description?: string;
+//     url?: string;
+//     date_created?: string;
+//     date_updated?: string;
+//     archived?: boolean;
+//     team_id?: string;
+//     status?: Gettasks['status'];
+//     creator?: Gettasks['creator'];
+//     assignees?: Gettasks['assignees'];
+//     // Add other fields you need...
+// }
+
+
+
+interface Task {
+    id: string;
+    name: string;
+    parent: string | null; 
+    level: number;
+    flags?: Record<string, string>;
+}
 interface Token {
 	type: TokenType;
 	value: string;
@@ -189,70 +215,75 @@ class Parser {
 		if (this.isToken(TokenType.NEWLINE)) this.next();
 	}
 
-	private newTask(name: string, level: number, flags?: Record<string, string>): Task {
-		this.idCounter++;
-		const task: Task = { id: `ph${this.idCounter}`, name, children: [], level };
+    private newTask(name: string, level: number, flags?: Record<string, string>, parentId: string | null = null): Task {
+        this.idCounter++;
+        const task: Task = { 
+            id: `ph${this.idCounter}`, 
+            name, 
+            parent: parentId, 
+            level 
+        };
 
-		if (flags && Object.keys(flags).length > 0) {
-			task.flags = flags;
-		}
+        if (flags && Object.keys(flags).length > 0) {
+            task.flags = flags;
+        }
 
-		return task;
-	}
+        return task;
+    }
 
-	parse(): Task[] {
-		const roots: Task[] = [];
-		const stack: Task[] = [];
+    parse(): Task[] {
+        const allTasks: Task[] = [];  // Changed to store all tasks instead of just roots
+        const stack: Task[] = [];
 
-		while (!this.isToken(TokenType.EOF)) {
-			if (this.isToken(TokenType.NEWLINE)) {
-				this.next();
-				continue;
-			}
+        while (!this.isToken(TokenType.EOF)) {
+            if (this.isToken(TokenType.NEWLINE)) {
+                this.next();
+                continue;
+            }
 
-			let indent = 0;
-			if (this.isToken(TokenType.INDENT)) {
-				indent = Number(this.currentToken.value);
-				this.next();
-			}
+            let indent = 0;
+            if (this.isToken(TokenType.INDENT)) {
+                indent = Number(this.currentToken.value);
+                this.next();
+            }
 
-			if (!this.isToken(TokenType.DASH, TokenType.CHECKBOX)) {
-				this.skipToNextLine();
-				continue;
-			}
-			this.next();
+            if (!this.isToken(TokenType.DASH, TokenType.CHECKBOX)) {
+                this.skipToNextLine();
+                continue;
+            }
+            this.next();
 
-			if (!this.isToken(TokenType.TEXT)) {
-				this.skipToNextLine();
-				continue;
-			}
+            if (!this.isToken(TokenType.TEXT)) {
+                this.skipToNextLine();
+                continue;
+            }
 
-			const name = this.currentToken.value;
-			const flags = this.currentToken.flags;
-			const task = this.newTask(name, indent, flags);
-			this.next();
+            const name = this.currentToken.value;
+            const flags = this.currentToken.flags;
 
-			while (stack.length > 0) {
-				const last = stack[stack.length - 1];
-				if (!last || last.level < indent) break;
-				stack.pop();
-			}
+            while (stack.length > 0) {
+                const last = stack[stack.length - 1];
+                if (!last || last.level < indent) break;
+                stack.pop();
+            }
 
-			const parent = stack.length > 0 ? stack[stack.length - 1] : undefined;
-			if (parent) parent.children.push(task);
-			else roots.push(task);
+            const parent = stack.length > 0 ? stack[stack.length - 1] : null;
+            const parentId = parent ? parent.id : null;
+            const task = this.newTask(name, indent, flags, parentId);
+            this.next();
 
-			stack.push(task);
+            allTasks.push(task);  
+            stack.push(task);
 
-			if (!this.isToken(TokenType.NEWLINE, TokenType.EOF)) {
-				this.skipToNextLine();
-			} else if (this.isToken(TokenType.NEWLINE)) {
-				this.next();
-			}
-		}
+            if (!this.isToken(TokenType.NEWLINE, TokenType.EOF)) {
+                this.skipToNextLine();
+            } else if (this.isToken(TokenType.NEWLINE)) {
+                this.next();
+            }
+        }
 
-		return roots;
-	}
+        return allTasks;  
+    }
 }
 
 interface InterpretResult {
@@ -263,36 +294,27 @@ interface InterpretResult {
 }
 
 class Interpreter {
-	interpret(roots: Task[]): InterpretResult {
-		const taskMap = new Map<string, Task>();
-		const linkMap = new Map<string, string[]>();
-		const parentMap = new Map<string, string | null>();
-		const rootTasks: Task[] = [];
+    interpret(tasks: Task[]): InterpretResult { 
+        const taskMap = new Map<string, Task>();
+        const linkMap = new Map<string, string[]>();
+        const parentMap = new Map<string, string | null>();
+        const rootTasks: Task[] = [];
 
-		const visit = (task: Task, parentId: string | null, rootId: string) => {
-			taskMap.set(task.id, task);
-			parentMap.set(task.id, parentId);
 
-			if (parentId === null) {
-				rootTasks.push(task);
-			}
+        for (const task of tasks) {
+            taskMap.set(task.id, task);
+            parentMap.set(task.id, task.parent);
 
-			if (parentId !== null) {
-				if (!linkMap.has(parentId)) linkMap.set(parentId, []);
-				linkMap.get(parentId)!.push(task.id);
-			}
+            if (task.parent === null) {
+                rootTasks.push(task);
+            } else {
+                if (!linkMap.has(task.parent)) linkMap.set(task.parent, []);
+                linkMap.get(task.parent)!.push(task.id);
+            }
+        }
 
-			for (const child of task.children) {
-				visit(child, task.id, rootId);
-			}
-		};
-
-		for (const root of roots) {
-			visit(root, null, root.id);
-		}
-
-		return { taskMap, linkMap, parentMap, roots: rootTasks };
-	}
+        return { taskMap, linkMap, parentMap, roots: rootTasks };
+    }
 }
 export interface TaskParserResult {
 	taskMap: Map<string, Task>;

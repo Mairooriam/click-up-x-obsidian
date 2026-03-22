@@ -1,5 +1,5 @@
 import { CreateTaskModal } from "./components/CreateTaskModal";
-import { Editor, MarkdownView, Notice, Plugin } from "obsidian";
+import { Editor, MarkdownView, Notice, Plugin, TFile } from "obsidian";
 import { MainAppModal } from "./signIn";
 import "../styles.css";
 import { SigninRequiredModal } from "./components/SigninRequired";
@@ -37,6 +37,33 @@ export default class ClickUpPlugin extends Plugin {
 	authService: AuthService;
 	storageService: StorageService;
 	taskService: TaskService;
+	/**
+	 * Logs a message to a file in the user's vault.
+	 * 
+	 * @param {string} message - The message to log.
+	 * @param {string} [filePath="ClickUpLogs/log.txt"] - The file path where the log will be written.
+	 */
+	private async logToFile(message: string, filePath: string = "ClickUpLogs/log.txt") {
+		const vault = this.app.vault;
+
+		// Ensure the directory exists
+		const directory = filePath.split("/").slice(0, -1).join("/");
+		if (!vault.getAbstractFileByPath(directory)) {
+			await vault.createFolder(directory);
+		}
+
+		// Check if the file exists
+		let logFile = vault.getAbstractFileByPath(filePath);
+		if (!logFile) {
+			// Create the file if it doesn't exist
+			await vault.create(filePath, "");
+			logFile = vault.getAbstractFileByPath(filePath);
+		}
+
+		// Append the log message to the file
+		const logMessage = `[${new Date().toISOString()}] ${message}\n`;
+		await vault.append(logFile as TFile, logMessage);
+	}
 
 	async onload() {
 		// Initialize services
@@ -75,8 +102,22 @@ export default class ClickUpPlugin extends Plugin {
 			name: "Sync to cursor",
 			callback: async () => {
 				try {
-					const data = await this.apiService.getTasks("901522227733");
-					console.log("Fetched tasks:", data);
+					const tasks = await this.apiService.getTasks("901522227733", {
+						subtasks: true,
+					});
+
+					console.log("Fetched tasks with subtasks:", tasks);
+
+					// Access fields of each task
+					tasks.forEach((task) => {
+						console.log(`Task ID: ${task.id}`);
+						console.log(`Task Name: ${task.name}`);
+						console.log(`Task Status: ${task.status.status}`);
+						console.log(`Task Creator: ${task.creator.username}`);
+						console.log(`Task URL: ${task.url}`);
+					});
+
+					await this.logToFile(`Fetched tasks: ${JSON.stringify(tasks, null, 2)}`);
 				} catch (error) {
 					console.error("Failed to fetch tasks:", error);
 				}
@@ -110,7 +151,7 @@ export default class ClickUpPlugin extends Plugin {
 						name: task.name,
 						level: task.level,
 						flags: task.flags,
-						children: task.children.map(child => child.id)
+						children: task.parent ? [task.parent] : []
 					});
 				});
 			},

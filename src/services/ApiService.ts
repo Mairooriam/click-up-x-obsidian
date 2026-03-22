@@ -1,5 +1,32 @@
 import { Notice, requestUrl } from "obsidian";
 import { TAllLists, TCreateTask, TMember } from "../interfaces/api.types";
+import { Gettasks } from "src/clickupTypes/types";
+
+interface GetTasksOptions {
+    order_by?: "id" | "created" | "updated" | "due_date"; // Order by specific fields
+    reverse?: boolean; // Reverse the order
+    subtasks?: boolean; // Include or exclude subtasks
+    archived?: boolean; // Include archived tasks
+    include_markdown_description?: boolean; // Return descriptions in Markdown
+    page?: number; // Page number to fetch
+    statuses?: string[]; // Filter by statuses
+    include_closed?: boolean; // Include closed tasks
+    include_timl?: boolean; // Include tasks in multiple lists
+    assignees?: string[]; // Filter by assignees
+    watchers?: string[]; // Filter by watchers
+    tags?: string[]; // Filter by tags
+    due_date_gt?: number; // Due date greater than (Unix time in ms)
+    due_date_lt?: number; // Due date less than (Unix time in ms)
+    date_created_gt?: number; // Date created greater than (Unix time in ms)
+    date_created_lt?: number; // Date created less than (Unix time in ms)
+    date_updated_gt?: number; // Date updated greater than (Unix time in ms)
+    date_updated_lt?: number; // Date updated less than (Unix time in ms)
+    date_done_gt?: number; // Date done greater than (Unix time in ms)
+    date_done_lt?: number; // Date done less than (Unix time in ms)
+    custom_fields?: string[]; // Filter by specific custom field values
+    custom_field?: string[]; // Filter by one specific custom field
+    custom_items?: number[]; // Filter by custom task types
+}
 
 export class ApiService {
 	private static instance: ApiService;
@@ -89,6 +116,31 @@ export class ApiService {
 		});
 	}
 
+	/**
+	 * 
+	 * @param options Takes in options and builds query out of them
+	 * @returns 
+	 */
+	private buildQueryParams(options?: Record<string, any>): string {
+    const queryParams = new URLSearchParams();
+
+    if (options) {
+        Object.entries(options).forEach(([key, value]) => {
+            if (value !== undefined) {
+                // Handle array values (e.g., statuses, assignees, tags)
+                if (Array.isArray(value)) {
+                    value.forEach((item) => queryParams.append(`${key}[]`, item.toString()));
+                } else {
+                    // Handle scalar values
+                    queryParams.append(key, value.toString());
+                }
+            }
+        });
+    }
+
+    return queryParams.toString();
+}
+
 	public async getToken(input: string): Promise<string | undefined> {
 		if (!input) return "MISSING_TOKEN";
 
@@ -155,10 +207,12 @@ export class ApiService {
 		return data.lists;
 	}
 
-	public async getTasks(list_id: string) {
-		const response = await this.fetcher(`list/${list_id}/task`);
-		const data = await response.json;
-		return data.tasks;
+	public async getTasks(list_id: string, options?: GetTasksOptions): Promise<Gettasks[]> {
+		const queryString = this.buildQueryParams(options);
+		const url = `list/${list_id}/task?${queryString}`;
+		const response = await this.fetcher(url);
+		const data = response.json; 
+		return data.tasks as Gettasks[];
 	}
 
 	public async getClickupLists(folderId: string): Promise<TAllLists[]> {
