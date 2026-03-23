@@ -1,4 +1,5 @@
 import { IList, ISpace } from "../interfaces/api.types";
+import { type TaskIndex } from "./taskParser";
 
 export class StorageService {
 	private static instance: StorageService;
@@ -63,6 +64,17 @@ export class StorageService {
 		return selectedSpace ? JSON.parse(selectedSpace) : null;
 	}
 
+	// TaskIndex related methods
+    public setTaskIndex(taskIndex: TaskIndex): void {
+        localStorage.setItem("taskIndex", JSON.stringify(taskIndex));
+    }
+
+    public getTaskIndex(): TaskIndex | null {
+        const taskIndex = localStorage.getItem("taskIndex");
+        return taskIndex ? JSON.parse(taskIndex) : null;
+    }
+
+
 	// Clear all data
 	public clearAllData(): void {
 		localStorage.removeItem("lists");
@@ -70,5 +82,6 @@ export class StorageService {
 		localStorage.removeItem("click_up_token");
 		localStorage.removeItem("selectedSpace");
 		localStorage.removeItem("CLICK_UP_CODE");
+		localStorage.removeItem("taskIndex");
 	}
 }

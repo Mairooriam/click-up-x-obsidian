@@ -1,11 +1,11 @@
 import { CreateTaskModal } from "./components/CreateTaskModal";
-import { Editor, MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { Editor, MarkdownView, Notice, Plugin, TFile, Modal as ModalBase } from "obsidian";
 import { MainAppModal } from "./signIn";
 import "../styles.css";
 import { SigninRequiredModal } from "./components/SigninRequired";
 import { ClickUpSettingTab } from "./settings";
 import { createTable } from "./utils";
-import { parseTaskList, type TaskParserResult } from './services/Lexer';
+import { deserializeTasks, TaskIndexer, serializeTaskToMd} from './services/taskParser/index';
 import {
 	ApiService,
 	AuthService,
@@ -19,6 +19,10 @@ import {
 } from "./interfaces";
 import * as dotenv from "dotenv";
 import { sep } from "path";
+import { Gettasks } from "./clickupTypes/types";
+
+import lodash from "lodash";
+const { isEqual } = lodash;
 
 dotenv.config({
 	debug: false,
@@ -100,24 +104,36 @@ export default class ClickUpPlugin extends Plugin {
 		this.addCommand({
 			id: "Sync to cursor",
 			name: "Sync to cursor",
-			callback: async () => {
+			editorCallback: async (editor: Editor) => {
+
+				// Check if taskIndex already exists
+				if (this.storageService.getTaskIndex()) {
+					const confirmation = await this.showConfirmationModal(
+						"A task index already exists. Do you want to overwrite it?"
+					);
+
+					if (!confirmation) {
+						new Notice("Task index update canceled.");
+						return;
+					}
+				}
+
+
+
 				try {
-					const tasks = await this.apiService.getTasks("901522227733", {
+					const fetchedTasks = await this.apiService.getTasks("901522227733", {
 						subtasks: true,
 					});
 
-					console.log("Fetched tasks with subtasks:", tasks);
+				const tasks = deserializeTasks(fetchedTasks);
+				const indexer = new TaskIndexer();
+				const taskIndex = indexer.index(tasks);
+				const result: string = serializeTaskToMd(taskIndex);
+				this.storageService.setTaskIndex(taskIndex);
 
-					// Access fields of each task
-					tasks.forEach((task) => {
-						console.log(`Task ID: ${task.id}`);
-						console.log(`Task Name: ${task.name}`);
-						console.log(`Task Status: ${task.status.status}`);
-						console.log(`Task Creator: ${task.creator.username}`);
-						console.log(`Task URL: ${task.url}`);
-					});
+				const cursor = editor.getCursor();
+				editor.replaceRange(result, cursor);
 
-					await this.logToFile(`Fetched tasks: ${JSON.stringify(tasks, null, 2)}`);
 				} catch (error) {
 					console.error("Failed to fetch tasks:", error);
 				}
@@ -135,25 +151,32 @@ export default class ClickUpPlugin extends Plugin {
 					return;
 				}
 
-				console.log("Raw selection:", selectedText);
+				// console.log("Raw selection:", selectedText);
+				const taskIndexer = new TaskIndexer;
+				const taskIndex = taskIndexer.indexSelection(selectedText);
+				console.log(taskIndex);
 
-				const parseResult: TaskParserResult = parseTaskList(selectedText);
+				if (!isEqual(this.storageService.getTaskIndex, taskIndex)){
+					new Notice("Index in storage is not equal to the lexed one");
+					return;
+				}
 
-				console.log("Parsed tasks:", parseResult);
-				console.log("Task map:", parseResult.taskMap);
-				console.log("Link map:", parseResult.linkMap);
-				console.log("Parent map:", parseResult.parentMap);
-				console.log("Root tasks:", parseResult.roots);
 
-				// Log each task with its flags
-				parseResult.taskMap.forEach((task, taskId) => {
-					console.log(`Task ${taskId}:`, {
-						name: task.name,
-						level: task.level,
-						flags: task.flags,
-						children: task.parent ? [task.parent] : []
-					});
-				});
+				// console.log("Parsed tasks:", parseResult);
+				// console.log("Task map:", parseResult.taskMap);
+				// console.log("Link map:", parseResult.linkMap);
+				// console.log("Parent map:", parseResult.parentMap);
+				// console.log("Root tasks:", parseResult.roots);
+
+				// // Log each task with its flags
+				// parseResult.taskMap.forEach((task, taskId) => {
+				// 	console.log(`Task ${taskId}:`, {
+				// 		name: task.name,
+				// 		level: task.level,
+				// 		flags: task.flags,
+				// 		children: task.parent ? [task.parent] : []
+				// 	});
+				// });
 			},
 		});
 	}
@@ -185,6 +208,29 @@ export default class ClickUpPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	private async showConfirmationModal(message: string): Promise<boolean> {
+		return new Promise((resolve) => {
+			const modal = new (class extends ModalBase {
+				onClose() {
+					super.onClose();
+					resolve(false);
+				}
+			})(this.app);
+			
+			modal.contentEl.createEl("p", { text: message });
+			const buttonContainer = modal.contentEl.createDiv();
+			buttonContainer.createEl("button", { text: "Yes" }).onclick = () => {
+				resolve(true);
+				modal.close();
+			};
+			buttonContainer.createEl("button", { text: "No" }).onclick = () => {
+				resolve(false);
+				modal.close();
+			};
+			modal.open();
+		});
 	}
 
 	async syncronizeListNote(id: string) {
